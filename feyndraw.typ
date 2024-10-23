@@ -1,7 +1,8 @@
 #import "@preview/cetz:0.2.2": canvas, draw,
 
-#import draw:*
+#import draw: circle, arc, bezier,line,mark,content, fill,
 
+#import draw:rotate,group
 // some vector calculation
 
 #let add(a, b) = {
@@ -14,9 +15,9 @@
     }
   }
 
-#let minus(a,b) = add(a,b.map(t=>-t))
+#let minu(a,b) = add(a,b.map(t=>-t))
 
-#let scal(a, b) = a.map(t=> t*b) 
+#let scal(v, b) = v.map(t=> t*b) 
 
 #let norm(a) = {
   let s = 0
@@ -48,7 +49,7 @@
   )
 }
 
-#let crd2angel(position, crd,)={
+#let crd2angel(position, crd )={
   let dx = crd.at(0) - position.at(0)
   let dy = crd.at(1) - position.at(1)
   let k = 0
@@ -79,9 +80,9 @@
 //  re: 两点一角有两种可能的取向，从短边来看，1为逆时针,-1为顺时针。
 // return: radius and crd of circle(crd) center. (radius, (xc, yc) )
 let Q = re*calc.abs((1 + calc.cos(ang))/calc.sin(ang))
-  let r = 1/2 *calc.sqrt(calc.pow(norm(minus(a,b)),2)*(1+calc.pow(Q,2)))
-  let xc = a.at(0) - 1/2 * inner_product(minus(a,b), (1,-Q))
-  let yc = a.at(1) - 1/2 *inner_product(minus(a,b), (Q,1)) 
+  let r = 1/2 *calc.sqrt(calc.pow(norm(minu(a,b)),2)*(1+calc.pow(Q,2)))
+  let xc = a.at(0) - 1/2 * inner_product(minu(a,b), (1,-Q))
+  let yc = a.at(1) - 1/2 *inner_product(minu(a,b), (Q,1)) 
   return (r,(xc, yc))
 }
 
@@ -90,8 +91,8 @@ let Q = re*calc.abs((1 + calc.cos(ang))/calc.sin(ang))
   // 将弧线分为若干个节点，并给出这些节点的坐标。
   let s = ()
   if angle == calc.inf{
-    let c = unit(minus(b, a))
-    let l = norm(minus(b, a))/node
+    let c = unit(minu(b, a))
+    let l = norm(minu(b, a))/node
     let lvec = scal(c, l)
     let start_p = a
     s = s + (start_p,)
@@ -121,7 +122,51 @@ let Q = re*calc.abs((1 + calc.cos(ang))/calc.sin(ang))
   return s
 }}
 
+#let polar_crd(r, angle) = {
+  (r*calc.cos(angle),r*calc.sin(angle))
+}
+
+#let para_grad(t, func, e:0.000000002)={
+  // func(t) = (x(t), y(t))
+  // return the grad of point f(t)
+  if e * t < 0 * t {
+    e = -e
+  }
+  let dp = minu(func(t + e*t) , func(t - e*t))
+  return crd2angel((0,0),dp)
+}
+
+#let tangent(..args)={
+  return polar_crd(1,para_grad(..args))
+}
+
+#let tangent_show(..args, r:0.01,storke:none, symbol:"stealth", mark_pos:"end",line_show:true)={
+  let tgt = tangent(..args)
+  let start = args.pos().at(1)(args.pos().at(0))
+  let end = add(start, scal(tgt,r))
+  if line_show != false{
+  line(start, end, storke:storke)}
+  if mark_pos == "end"{
+  mark(start, end,symbol:symbol,fill:black)}
+  else if mark_pos == "mid"{
+    mark(
+      start, 
+      add(start, scal(tgt,.7*r)),
+      symbol:symbol, fill:black
+    )
+  }else if mark_pos == "start"{
+    mark(
+      start, 
+      add(start, scal(tgt,.1*r)),
+      symbol:symbol, fill:black
+    )
+  }
+  
+}
+
+
 // shape 
+shape
 #let dot(x,y,r:.1, fill:black) = {
   circle((x,y),radius: r,fill: fill)
   }
@@ -130,7 +175,7 @@ let Q = re*calc.abs((1 + calc.cos(ang))/calc.sin(ang))
 #let waveline_group(start:(), end:(), node: 10)={
   let q = 1
   let re = 1
-    let long=scal(minus(end,start),1/node)
+    let long=scal(minu(end,start),1/node)
     let Tran= rot_vec_2dim(-90deg, long)
   while q <= node {
     let a = add(start , long.map(t=>t*(q - 1)))
@@ -145,7 +190,7 @@ let Q = re*calc.abs((1 + calc.cos(ang))/calc.sin(ang))
 } 
 
 #let twopoint_wave(a, b, orien:1, amp:1.2)={
-  let long=scal(minus(b,a),1)
+  let long=scal(minu(b,a),1)
   let tran = add(long,scal(rot_vec_2dim(orien*90, long),amp))
   bezier(a, b,add(a, tran))
 }
@@ -156,7 +201,10 @@ let Q = re*calc.abs((1 + calc.cos(ang))/calc.sin(ang))
 
 
 #let ppa_arc(a, b, ang, re:1, center_show: true)={
-  // 绘出
+  // 
+  if ang == calc.inf{
+    line(a, b)
+  }else{
   let r_crd = ppa_circle_crd(a,b,ang)
   let r = r_crd.at(0)
   let cc = r_crd.at(1)
@@ -178,10 +226,10 @@ let Q = re*calc.abs((1 + calc.cos(ang))/calc.sin(ang))
   if center_show{
   circle(cc,radius:.05,fill:gray)
   }
-}
+}}
 
 #let  no_match_cir(a, b,rate:2)={
-  let long = minus(a,b)
+  let long = minu(a,b)
   let c = add(a,scal(long,1/rate))
   ppa_arc(a, c,180deg,center_show: false)
 
@@ -189,7 +237,7 @@ let Q = re*calc.abs((1 + calc.cos(ang))/calc.sin(ang))
 }
 
 #let elem_gluon(a, b,re:1)={
-  let d = minus(b, a)
+  let d = minu(b, a)
   let t = rot_vec_2dim(90deg, d)
   let r1 = 0.7 // r1 > 0.5
   let r2 = r1 - 0.5
@@ -207,7 +255,7 @@ let Q = re*calc.abs((1 + calc.cos(ang))/calc.sin(ang))
 }
 
 #let gluon(a, b, angle: calc.inf,re:1, node:12,vertex_show:false)={
-    let d = minus(b, a)
+    let d = minu(b, a)
     let long = unit(d)
     let start_point = a
     let end_point = b
@@ -247,20 +295,58 @@ twopoint_wave(q.at(i),q.at(i+1),orien: f)
     Dot(b)
   }
   if m != "" {
-    let tran = rot_vec_2dim(-90deg,scal(minus(b,a),0.2))
+    let tran = rot_vec_2dim(-90deg,scal(minu(b,a),0.2))
     let m_position = add(tran,q.at(calc.floor(node/2)))
 content(m_position)[#emph(m)]}
 }
 
-#let fermion(a, b, re:1,m:"",m_show:true)={
+#let fermion(a, b, ang:calc.inf, re:1,m:"",m_show:true, mark_show: true)={
+  // the curved fermion_line havn't be done,you can use ppa_arc() and mark() to replace
   line(a, b)
-  let long = scal(minus(b,a),5/8)
-  let tran = scal(rot_vec_2dim(-90,long), re/4)
-  mark(a, add(a,long),symbol:">",fill:black)
+  let long = scal(minu(b,a),5/8)
+  let tran =  scal(rot_vec_2dim(-90,long), re/4)
+  if mark_show{
+  mark(a, add(a,long),symbol:">",fill:black)}
   if m != "" and m_show{
     content(add(add(a,long),tran))[#emph(m)]
   }
 }
+
+#let dashed_line(a, b, node:6, d:0.08, stroke:none)={
+  let c = minu(b, a)
+  let l = (1 - (node - 1)*d)/node
+  let lvec = scal(c, l)
+  let dvec = scal(c, d)
+  let start_p = a
+  let end_p = add(a, lvec)
+  for i in range(node){
+    line(start_p, end_p,stroke:stroke)
+    start_p = add(end_p, dvec)
+    end_p = add(start_p, lvec)
+  }
+}
+
+#let scalar(a, b, angle:calc.inf,re:1, form: 1, node:6, vertex_show:false, m: "")={
+  if form == 1{
+    ppa_arc(a, b, angle,re:re, center_show: false)
+    }else{
+  let point_group = arc_spilt(a, b, angle: angle, node:2*node, re: re)
+  for i in range(point_group.len()-1, step: 2){
+    line(point_group.at(i),
+        point_group.at(i+1))
+    }
+    }
+  if vertex_show{
+    Dot(a)
+    Dot(b)
+  }
+  if m != ""{
+  let long = scal(minu(b,a),5/8)
+  let tran =  scal(rot_vec_2dim(-90,long), re/2)
+    content(add(add(a,long),tran))[#emph(m)]
+  }
+  }
+
 
 #let oval(c, long:1, width:1, fill:white)={
   scale(y:long, x:width)
@@ -268,7 +354,7 @@ content(m_position)[#emph(m)]}
   scale(y:1/long, x:1/width)
 }
 
-#let axis(o, xlim:(),ylim:(),ticks:false,xticks:false, yticks:false)={
+#let axis(o, xlim:(-4,4),ylim:(-4,4),ticks:false,xticks:false, yticks:false)={
   Dot(o)
   line((xlim.at(0),0),
   (xlim.at(1),0))
@@ -292,19 +378,41 @@ content(m_position)[#emph(m)]}
   }
 }
 
+// some method for complex diagrams
 
-#let dashed_line(a, b, node:6, d:0.08)={
-  let c = minus(b, a)
-  let l = (1 - (node - 1)*d)/node
-  let lvec = scal(c, l)
-  let dvec = scal(c, d)
-  let start_p = a
-  let end_p = add(a, lvec)
-  for i in range(node){
-    line(start_p, end_p)
-    start_p = add(end_p, dvec)
-    end_p = add(start_p, lvec)
-  }
+#let fermion_loop(a, b,vertex_show:false)={
+  ppa_arc(a, b, 180deg, center_show:false)
+  ppa_arc(b, a, 180deg, center_show:false)
+  let long = scal(minu(b, a),0.5)
+  let tran = rot_vec_2dim( 90deg,long)
+  let v1 = add(a, tran)
+  let v2 = add(v1,scal(long,1.2))
+  mark(v1, v2,symbol:">",fill:black)
+  v1 = minu(b, tran)
+  v2 = minu(v1, scal(long, 1.2))
+mark(v1, v2,symbol:">",fill:black)
+  if vertex_show{
+  Dot(a)
+  Dot(b)}
+
+}
+
+// Custom Elements
+Custom Elements
+#let ox(position, r,angle:45deg)={
+  circle(position, radius:r)
+  let s1 = add(position,polar_crd(r, angle))
+  let e1 = add(position, polar_crd(r, angle + 180deg))
+  let s2 = add(position,polar_crd(r, angle + 90deg))
+  let e2 = add(position,polar_crd(r, angle - 90deg))
+  line(s1, e1)
+  line(s2, e2)
+}
+
+#let Rot_group(g, angle, origin:(0,0,0))={
+
+  rotate(angle, origin: origin)
+  g
 }
 
 // example
@@ -385,14 +493,19 @@ gluon((0.2,0.2),(1,1),node:8 )
 #canvas(length: 1cm, {
   
   Dot((0,0))
-  let gr = arc_spilt((0,0),(1,2),angle:60deg, node: 16, re:1)
-  for i in range(gr.len()-1){
-    elem_gluon(gr.at(i),gr.at(i+1))
-  }
+  // let gr = arc_spilt((0,0),(1,2),angle:60deg, node: 16, re:1)
+  // for i in range(gr.len()-1){
+  //   elem_gluon(gr.at(i),gr.at(i+1))
+  // }
   content((0,0))[O]
   Dot((3,0))
   Dot((3,3))
   gluon((3,0), (3,3), angle: 120deg, re: -1, node: 16)
+  scalar((0,0),(2,0), angle: 180deg, form: 2, node:8, m:"k")
+  scalar((2,0),(0,0), angle: 180deg, form:2)
+  fermion_loop((2,4),(3,4), vertex_show: false)
   }
 )
 ]
+
+
